@@ -1,7 +1,7 @@
 # 🧪 aavi_sandbox
 
 **aavi_sandbox** is a modular, overlay-based sandboxing framework for Linux systems.  
-Created by [sneaks](https://github.com/sneaks) + Aavi, it lets you experiment boldly without touching your base system.  
+Created by [sneaks](https://jonathanderouchie.com) + Aavi, it lets you experiment boldly without touching your base system.  
 Tinker, test, toggle, and time-travel — with layered control and full rollback.
 
 ---
@@ -22,6 +22,33 @@ Tinker, test, toggle, and time-travel — with layered control and full rollback
 | `--status`                  | Show overlay status, active layers, and pending changes. |
 | `--undo [snapshot]`         | Roll back the system to a previous snapshot's backup (for committed overlays only). |
 | `--ui` _(coming soon)_      | Launch an interactive terminal UI to manage overlays, commits, and snapshots. |
+
+---
+
+## ⚠️ Root Access & System Paths
+
+`aavi_sandbox` is designed to interact with system-level directories like:
+
+- `/etc`
+- `/opt`
+- `/var/lib`
+
+This means:
+
+- You should run most commands with `sudo`
+- Especially for `--play`, `--commit`, `--enable`, and `--undo`
+- Without proper permissions, overlays may fail to apply or changes won't be committed
+
+If you're testing in user space (e.g. `~/sandbox_test`), you can override the default paths:
+
+```ini
+# ~/.aavi_sandbox.conf
+LOWERDIR=/home/jojo/sandbox_test
+UPPERDIR=/tmp/aavi_overlay/sandbox_test
+MOUNTPOINT=/home/jojo/sandbox_test
+```
+
+This is perfect for dev/test environments where root access isn't available—or just to keep things clean.
 
 ---
 
