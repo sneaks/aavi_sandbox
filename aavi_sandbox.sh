@@ -1,136 +1,101 @@
 #!/bin/bash
 
 CONFIG_FILE="/etc/aavi_sandbox.conf"
-
-# Default config
-LOWERDIR="/etc"
-UPPERDIR="/tmp/aavi_overlay/etc"
-WORKDIR="/tmp/aavi_work/etc"
-MOUNTPOINT="/etc"
-
-load_config() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-    fi
-}
-
-mount_overlay() {
-    echo "🔁 Entering sandbox mode..."
-    mkdir -p "$UPPERDIR" "$WORKDIR"
-    mount -t overlay overlay \
-        -o lowerdir="$LOWERDIR",upperdir="$UPPERDIR",workdir="$WORKDIR" \
-        "$MOUNTPOINT"
-    echo "⚠️  Sandbox active. Changes are in RAM only." > /etc/motd
-}
-
-commit_changes() {
-    echo "💾 Committing changes..."
-    rsync -a --info=progress2 --exclude='.wh.*' "$UPPERDIR"/ "$LOWERDIR"/
-    echo "✅ Changes committed to $LOWERDIR"
-#!/bin/bash
-
-CONFIG_FILE="/etc/aavi_sandbox.conf"
-
-# Default config
-LOWERDIR="/etc"
-UPPERDIR="/tmp/aavi_overlay/etc"
-WORKDIR="/tmp/aavi_work/etc"
-MOUNTPOINT="/etc"
 BACKUPDIR="/var/backups/aavi_sandbox"
+SESSION_DIR="/var/log/aavi_sandbox_sessions"
+ENABLE_LIST="/var/run/aavi_sandbox_enabled.list"
+CURRENT_SESSION="/tmp/.aavi_sandbox_session"
+
+LOWERDIR="/etc"
+UPPERDIR="/tmp/aavi_overlay/etc"
+WORKDIR="/tmp/aavi_work/etc"
+MOUNTPOINT="/etc"
 
 load_config() {
-    if [ -f "$CONFIG_FILE" ]; then
-        source "$CONFIG_FILE"
-    fi
+  [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
 }
 
 mount_overlay() {
-    echo "🔁 Entering sandbox mode..."
-    mkdir -p "$UPPERDIR" "$WORKDIR"
-    mount -t overlay overlay \
-        -o lowerdir="$LOWERDIR",upperdir="$UPPERDIR",workdir="$WORKDIR" \
-        "$MOUNTPOINT"
-    echo "⚠️  Sandbox active. Changes are in RAM only." > /etc/motd
+  mkdir -p "$UPPERDIR" "$WORKDIR"
+  mount -t overlay overlay \
+    -o lowerdir="$LOWERDIR",upperdir="$UPPERDIR",workdir="$WORKDIR" \
+    "$MOUNTPOINT"
+  echo "Overlay mounted at $MOUNTPOINT"
+  echo "$1" > "$CURRENT_SESSION"
+  start_command_logger "$1"
 }
 
-commit_changes() {
-    echo "💾 Creating backup before commit..."
-    BACKUP_PATH="$BACKUPDIR/2025-06-01"
-    mkdir -p "$BACKUP_PATH"
-    find "$UPPERDIR" -type f | while read file; do
-        REL_PATH="${file#$UPPERDIR/}"
-        if [ -f "$LOWERDIR/$REL_PATH" ]; then
-            mkdir -p "$BACKUP_PATH/$(dirname "$REL_PATH")"
-            cp -a "$LOWERDIR/$REL_PATH" "$BACKUP_PATH/$REL_PATH"
-        fi
-    done
+start_command_logger() {
+  mkdir -p "$SESSION_DIR"
+  LOGFILE="$SESSION_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
+  export PROMPT_COMMAND='history 1 | tee -a "$LOGFILE" >/dev/null'
+  echo "Logging to $LOGFILE"
+}
 
-    echo "💾 Committing changes..."
-    rsync -a --exclude='.wh.*' "$UPPERDIR"/ "$LOWERDIR"/
-    echo "✅ Changes committed to $LOWERDIR"
-    echo "📝 Backup created at $BACKUP_PATH"
+commit_overlay() {
+  SNAPSHOT_NAME="$1"
+  [ -z "$SNAPSHOT_NAME" ] && SNAPSHOT_NAME=$(date +%Y-%m-%d)
+  BACKUP_PATH="$BACKUPDIR/$SNAPSHOT_NAME"
+  mkdir -p "$BACKUP_PATH"
+  find "$UPPERDIR" -type f | while read file; do
+    REL_PATH="${file#$UPPERDIR/}"
+    [ -f "$LOWERDIR/$REL_PATH" ] && {
+      mkdir -p "$BACKUP_PATH/$(dirname "$REL_PATH")"
+      cp -a "$LOWERDIR/$REL_PATH" "$BACKUP_PATH/$REL_PATH"
+    }
+  done
+  rsync -a "$UPPERDIR"/ "$LOWERDIR"/
+  echo "$SNAPSHOT_NAME" >> "$BACKUPDIR/index.log"
 }
 
 clear_overlay() {
-    echo "🧹 Clearing overlay and exiting sandbox..."
-    umount "$MOUNTPOINT"
-    rm -rf "$UPPERDIR" "$WORKDIR"
-    rm -f /etc/motd
+  umount "$MOUNTPOINT"
+  rm -rf "$UPPERDIR" "$WORKDIR" "$CURRENT_SESSION"
+  echo "Overlay cleared"
 }
 
-status_report() {
-    echo "🧾 Aavi Sandbox Status"
-    echo "Lowerdir:     $LOWERDIR"
-    echo "Upperdir:     $UPPERDIR"
-    echo "Workdir:      $WORKDIR"
-    echo "Mountpoint:   $MOUNTPOINT"
-    echo ""
-
-    mount | grep "$MOUNTPOINT" && echo "✅ Overlay is currently mounted." || echo "❌ Overlay is NOT mounted."
-
-    echo ""
-    if [ -d "$UPPERDIR" ]; then
-        echo "📁 Changes staged in overlay:"
-        find "$UPPERDIR" -type f
-    else
-        echo "📭 No changes staged."
-    fi
+enable_layer() {
+  SNAPSHOT="$1"
+  SNAPSHOT_DIR="$BACKUPDIR/$SNAPSHOT"
+  mount -t overlay overlay \
+    -o lowerdir="$LOWERDIR",upperdir="$SNAPSHOT_DIR",workdir="$WORKDIR" \
+    "$MOUNTPOINT"
+  echo "$SNAPSHOT" >> "$ENABLE_LIST"
 }
 
-undo_commit() {
-    if [ -z "$2" ]; then
-        echo "⚠️  Please specify a date to undo. Example: --undo 2025-06-01"
-        exit 1
-    fi
-    RESTORE_PATH="$BACKUPDIR/$2"
-    if [ ! -d "$RESTORE_PATH" ]; then
-        echo "❌ Backup directory $RESTORE_PATH does not exist."
-        exit 1
-    fi
-    echo "♻️  Rolling back to backup from $2..."
-    rsync -a "$RESTORE_PATH"/ "$LOWERDIR"/
-    echo "✅ Rollback complete."
+disable_layer() {
+  SNAPSHOT="$1"
+  umount "$MOUNTPOINT"
+  grep -v "$SNAPSHOT" "$ENABLE_LIST" > "$ENABLE_LIST.tmp" && mv "$ENABLE_LIST.tmp" "$ENABLE_LIST"
+  echo "Disabled: $SNAPSHOT"
 }
 
-load_config
+list_snapshots() {
+  echo "📚 Available Snapshots:"
+  [ -f "$BACKUPDIR/index.log" ] && sort "$BACKUPDIR/index.log" | uniq || echo "❌ No snapshots found."
+}
 
 case "$1" in
-    --play)
-        mount_overlay
-        ;;
-    --commit)
-        commit_changes
-        ;;
-    --clear)
-        clear_overlay
-        ;;
-    --status)
-        status_report
-        ;;
-    --undo)
-        undo_commit "$@"
-        ;;
-    *)
-        echo "Usage: $0 --play | --commit | --clear | --status | --undo YYYY-MM-DD"
-        ;;
+  --play)
+    load_config
+    mount_overlay "$2"
+    ;;
+  --commit)
+    commit_overlay "$2"
+    ;;
+  --clear)
+    clear_overlay
+    ;;
+  --enable)
+    enable_layer "$2"
+    ;;
+  --disable)
+    disable_layer "$2"
+    ;;
+  --list|--lst|--snapshots)
+    list_snapshots
+    ;;
+  *)
+    echo "Usage: $0 --play [name] | --commit [name] | --clear | --enable [name] | --disable [name] | --list"
+    ;;
 esac
