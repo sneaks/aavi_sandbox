@@ -12,9 +12,8 @@ WORKDIR_BASE="/tmp/aavi_work"
 MOUNTPOINT="/etc"
 LOGDIR="/var/log/aavi_sandbox_sessions"
 
-SNAPSHOT_NAME="default"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-SESSION_LOG=""
+SNAPSHOT_NAME=""
 
 mkdir -p "$OVERLAY_BASE" "$WORKDIR_BASE" "$LOGDIR"
 
@@ -74,23 +73,25 @@ function status_report() {
 
 function list_snapshots() {
   echo "📚 Available Snapshots:"
-  find "$OVERLAY_BASE" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
+  find "$OVERLAY_BASE" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | grep -v '^etc$'
 }
 
 # === CLI SWITCHES ===
 case "$1" in
   --play)
-    SNAPSHOT_NAME="$2"
+    SNAPSHOT_NAME="${2:-default_$TIMESTAMP}"
     log_session "$SNAPSHOT_NAME"
     mount_overlay
     ;;
 
   --commit)
+    if [ -z "$2" ]; then echo "❌ Please provide a snapshot name for --commit"; exit 1; fi
     SNAPSHOT_NAME="$2"
     commit_changes
     ;;
 
   --clear)
+    if [ -z "$2" ]; then echo "❌ Please provide a snapshot name for --clear"; exit 1; fi
     SNAPSHOT_NAME="$2"
     clear_overlay
     ;;
@@ -100,6 +101,7 @@ case "$1" in
     ;;
 
   --status)
+    SNAPSHOT_NAME="${2:-default_$TIMESTAMP}"
     status_report
     ;;
 
@@ -107,6 +109,12 @@ case "$1" in
     list_snapshots
     ;;
 
+  --remove)
+    if [ -z "$2" ]; then echo "❌ Please provide a snapshot name for --remove"; exit 1; fi
+    SNAPSHOT_NAME="$2"
+    rm -rf "$OVERLAY_BASE/$SNAPSHOT_NAME" "$WORKDIR_BASE/$SNAPSHOT_NAME"
+    echo "🗑️ Removed snapshot '$SNAPSHOT_NAME' from sandbox storage."
+    ;;
   *)
     echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status] [--list]"
     ;;
