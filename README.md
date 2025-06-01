@@ -25,6 +25,11 @@ Tinker, test, toggle, and time-travel — with layered control and full rollback
 
 ---
 
+## 🛠 Installation
+
+Use `sudo cp aavi_sandbox.sh /usr/local/bin/` to install into your file system and run system level commands.
+
+
 ## ⚠️ Root Access & System Paths
 
 `aavi_sandbox` is designed to interact with system-level directories like:
