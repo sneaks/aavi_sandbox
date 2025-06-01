@@ -72,6 +72,11 @@ function status_report() {
   fi
 }
 
+function list_snapshots() {
+  echo "📚 Available Snapshots:"
+  find "$OVERLAY_BASE" -mindepth 1 -maxdepth 1 -type d -exec basename {} \;
+}
+
 # === CLI SWITCHES ===
 case "$1" in
   --play)
@@ -98,7 +103,11 @@ case "$1" in
     status_report
     ;;
 
+  --list)
+    list_snapshots
+    ;;
+
   *)
-    echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status]"
+    echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status] [--list]"
     ;;
 esac
