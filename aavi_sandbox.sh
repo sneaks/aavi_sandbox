@@ -1,101 +1,104 @@
 #!/bin/bash
 
-CONFIG_FILE="/etc/aavi_sandbox.conf"
-BACKUPDIR="/var/backups/aavi_sandbox"
-SESSION_DIR="/var/log/aavi_sandbox_sessions"
-ENABLE_LIST="/var/run/aavi_sandbox_enabled.list"
-CURRENT_SESSION="/tmp/.aavi_sandbox_session"
+# Aavi Sandbox - Overlay Filesystem Sandbox Tool
+# https://github.com/sneaks/aavi_sandbox
 
+set -e
+
+# === CONFIG ===
 LOWERDIR="/etc"
-UPPERDIR="/tmp/aavi_overlay/etc"
-WORKDIR="/tmp/aavi_work/etc"
+OVERLAY_BASE="/tmp/aavi_overlay"
+WORKDIR_BASE="/tmp/aavi_work"
 MOUNTPOINT="/etc"
+LOGDIR="/var/log/aavi_sandbox_sessions"
 
-load_config() {
-  [ -f "$CONFIG_FILE" ] && source "$CONFIG_FILE"
-}
+SNAPSHOT_NAME="default"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+SESSION_LOG=""
 
-mount_overlay() {
-  mkdir -p "$UPPERDIR" "$WORKDIR"
-  mount -t overlay overlay \
-    -o lowerdir="$LOWERDIR",upperdir="$UPPERDIR",workdir="$WORKDIR" \
-    "$MOUNTPOINT"
-  echo "Overlay mounted at $MOUNTPOINT"
-  echo "$1" > "$CURRENT_SESSION"
-  start_command_logger "$1"
-}
+mkdir -p "$OVERLAY_BASE" "$WORKDIR_BASE" "$LOGDIR"
 
-start_command_logger() {
-  mkdir -p "$SESSION_DIR"
-  LOGFILE="$SESSION_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
-  export PROMPT_COMMAND='history 1 | tee -a "$LOGFILE" >/dev/null'
-  echo "Logging to $LOGFILE"
-}
-
-commit_overlay() {
+# === FUNCTIONS ===
+function log_session() {
   SNAPSHOT_NAME="$1"
-  [ -z "$SNAPSHOT_NAME" ] && SNAPSHOT_NAME=$(date +%Y-%m-%d)
-  BACKUP_PATH="$BACKUPDIR/$SNAPSHOT_NAME"
-  mkdir -p "$BACKUP_PATH"
-  find "$UPPERDIR" -type f | while read file; do
-    REL_PATH="${file#$UPPERDIR/}"
-    [ -f "$LOWERDIR/$REL_PATH" ] && {
-      mkdir -p "$BACKUP_PATH/$(dirname "$REL_PATH")"
-      cp -a "$LOWERDIR/$REL_PATH" "$BACKUP_PATH/$REL_PATH"
-    }
-  done
-  rsync -a "$UPPERDIR"/ "$LOWERDIR"/
-  echo "$SNAPSHOT_NAME" >> "$BACKUPDIR/index.log"
+  SESSION_LOG="$LOGDIR/${SNAPSHOT_NAME}-${TIMESTAMP}.log"
+  exec > >(tee -a "$SESSION_LOG") 2>&1
+  set -x
 }
 
-clear_overlay() {
-  umount "$MOUNTPOINT"
-  rm -rf "$UPPERDIR" "$WORKDIR" "$CURRENT_SESSION"
-  echo "Overlay cleared"
-}
+function mount_overlay() {
+  UPPERDIR="$OVERLAY_BASE/$SNAPSHOT_NAME"
+  WORKDIR="$WORKDIR_BASE/$SNAPSHOT_NAME"
+  mkdir -p "$UPPERDIR" "$WORKDIR"
 
-enable_layer() {
-  SNAPSHOT="$1"
-  SNAPSHOT_DIR="$BACKUPDIR/$SNAPSHOT"
   mount -t overlay overlay \
-    -o lowerdir="$LOWERDIR",upperdir="$SNAPSHOT_DIR",workdir="$WORKDIR" \
-    "$MOUNTPOINT"
-  echo "$SNAPSHOT" >> "$ENABLE_LIST"
+    -o lowerdir=$LOWERDIR,upperdir=$UPPERDIR,workdir=$WORKDIR \
+    $MOUNTPOINT
+  echo "✅ Overlay mounted at $MOUNTPOINT"
 }
 
-disable_layer() {
-  SNAPSHOT="$1"
-  umount "$MOUNTPOINT"
-  grep -v "$SNAPSHOT" "$ENABLE_LIST" > "$ENABLE_LIST.tmp" && mv "$ENABLE_LIST.tmp" "$ENABLE_LIST"
-  echo "Disabled: $SNAPSHOT"
+function unmount_overlay() {
+  umount $MOUNTPOINT
+  echo "🚫 Overlay unmounted from $MOUNTPOINT"
 }
 
-list_snapshots() {
-  echo "📚 Available Snapshots:"
-  [ -f "$BACKUPDIR/index.log" ] && sort "$BACKUPDIR/index.log" | uniq || echo "❌ No snapshots found."
+function clear_overlay() {
+  rm -rf "$OVERLAY_BASE/$SNAPSHOT_NAME" "$WORKDIR_BASE/$SNAPSHOT_NAME"
+  echo "🧹 Cleared snapshot '$SNAPSHOT_NAME' overlay data."
 }
 
+function commit_changes() {
+  rsync -a "$OVERLAY_BASE/$SNAPSHOT_NAME"/ "$LOWERDIR"/
+  echo "💾 Changes committed from snapshot '$SNAPSHOT_NAME' to $LOWERDIR"
+}
+
+function status_report() {
+  echo "🧾 Aavi Sandbox Status"
+  echo "Lowerdir:     $LOWERDIR"
+  echo "Upperdir:     $OVERLAY_BASE/$SNAPSHOT_NAME"
+  echo "Workdir:      $WORKDIR_BASE/$SNAPSHOT_NAME"
+  echo "Mountpoint:   $MOUNTPOINT"
+
+  if mount | grep -q "on $MOUNTPOINT type overlay"; then
+    echo "✅ Overlay is mounted."
+  else
+    echo "❌ Overlay is NOT mounted."
+  fi
+
+  if [ -d "$OVERLAY_BASE/$SNAPSHOT_NAME" ]; then
+    echo "📦 Snapshot '$SNAPSHOT_NAME' exists."
+  else
+    echo "📭 No changes staged."
+  fi
+}
+
+# === CLI SWITCHES ===
 case "$1" in
   --play)
-    load_config
-    mount_overlay "$2"
+    SNAPSHOT_NAME="$2"
+    log_session "$SNAPSHOT_NAME"
+    mount_overlay
     ;;
+
   --commit)
-    commit_overlay "$2"
+    SNAPSHOT_NAME="$2"
+    commit_changes
     ;;
+
   --clear)
+    SNAPSHOT_NAME="$2"
     clear_overlay
     ;;
-  --enable)
-    enable_layer "$2"
+
+  --exit)
+    unmount_overlay
     ;;
-  --disable)
-    disable_layer "$2"
+
+  --status)
+    status_report
     ;;
-  --list|--lst|--snapshots)
-    list_snapshots
-    ;;
+
   *)
-    echo "Usage: $0 --play [name] | --commit [name] | --clear | --enable [name] | --disable [name] | --list"
+    echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status]"
     ;;
 esac
