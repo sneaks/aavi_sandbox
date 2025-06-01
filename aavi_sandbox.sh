@@ -6,10 +6,10 @@
 set -e
 
 # === CONFIG ===
-LOWERDIR="/etc"
+LOWERDIR="/opt/aavi_sandbox_test"
 OVERLAY_BASE="/tmp/aavi_overlay"
 WORKDIR_BASE="/tmp/aavi_work"
-MOUNTPOINT="/etc"
+MOUNTPOINT="/opt/aavi_sandbox_test"
 LOGDIR="/var/log/aavi_sandbox_sessions"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -116,6 +116,18 @@ case "$1" in
     echo "🗑️ Removed snapshot '$SNAPSHOT_NAME' from sandbox storage."
     ;;
   *)
-    echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status] [--list]"
+    echo "Usage: aavi_sandbox [--play SNAPSHOT] [--commit SNAPSHOT] [--clear SNAPSHOT] [--exit] [--status] [--list] [--remove SNAPSHOT] [--target PATH]"
     ;;
 esac
+
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --target)
+      TARGET_PATH="$2"
+      LOWERDIR="$TARGET_PATH"
+      MOUNTPOINT="$TARGET_PATH"
+      shift 2
+      ;;
+    *) break ;;
+  esac
+done

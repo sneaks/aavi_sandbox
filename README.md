@@ -22,6 +22,7 @@ Tinker, test, toggle, and time-travel — with layered control and full rollback
 | `--status`                  | Show overlay status, active layers, and pending changes. |
 | `--undo [snapshot]`         | Roll back the system to a previous snapshot's backup (for committed overlays only). |
 | `--ui` _(coming soon)_      | Launch an interactive terminal UI to manage overlays, commits, and snapshots. |
+| `--target [path]`           | Override the default mount location (e.g. /opt/sandbox). |
 
 ---
 
@@ -33,6 +34,8 @@ To install `aavi_sandbox` as a system-wide command:
 make install
 ```
 
+By default, sandbox sessions mount overlays at `/opt/aavi_sandbox_test`, a safe writable location for experimentation.
+
 Manual method:
 
 `sudo cp aavi_sandbox.sh /usr/local/bin/`
@@ -42,11 +45,8 @@ Once installed, run aavi_sandbox from anywhere like a command-line spell 🔮
 
 ## ⚠️ Root Access & System Paths
 
-`aavi_sandbox` is designed to interact with system-level directories like:
-
-- `/etc`
-- `/opt`
-- `/var/lib`
+`aavi_sandbox` now defaults to using `/opt/aavi_sandbox_test` as its mount point.  
+You can override this with the `--target` flag or by editing your `~/.aavi_sandbox.conf`.
 
 This means:
 
@@ -72,6 +72,9 @@ This is perfect for dev/test environments where root access isn't available—or
 ```bash
 # Start a named sandbox session
 sudo aavi_sandbox --play ha_darkmode_patch
+
+# Start a named sandbox session on a custom target directory
+sudo aavi_sandbox --play ha_theme_patch --target /opt/sandbox_test
 
 # Make changes (these go to the overlay, not your real system)
 nano /etc/homeassistant/configuration.yaml
