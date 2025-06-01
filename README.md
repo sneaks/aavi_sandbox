@@ -27,7 +27,17 @@ Tinker, test, toggle, and time-travel — with layered control and full rollback
 
 ## 🛠 Installation
 
-Use `make install` or `sudo cp aavi_sandbox.sh /usr/local/bin/` to install into your file system and run system level commands.
+To install `aavi_sandbox` as a system-wide command:
+
+```bash
+make install
+```
+
+Manual method:
+
+`sudo cp aavi_sandbox.sh /usr/local/bin/`
+
+Once installed, run aavi_sandbox from anywhere like a command-line spell 🔮
 
 
 ## ⚠️ Root Access & System Paths
