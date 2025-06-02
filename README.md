@@ -24,6 +24,33 @@ Tinker, test, toggle, and time-travel — with layered control and full rollback
 | `--ui` _(coming soon)_      | Launch an interactive terminal UI to manage overlays, commits, and snapshots. |
 | `--target [path]`           | Override the default mount location (e.g. /opt/sandbox). |
 
+## 🎨 Terminal UI
+
+A beautiful terminal interface is available via `aavi_sandbox_tui`. This interface provides an intuitive way to manage your sandboxes and overlays.
+
+### Requirements
+- `gum` - The Charm CLI tool ([installation instructions](https://github.com/charmbracelet/gum#installation))
+
+### Features
+- 📦 Interactive snapshot creation and management
+- 🏷️ Easy labeling and descriptions
+- 📋 Session log viewer
+- ⚡ Quick access to all sandbox operations
+- 💫 Beautiful, modern interface
+
+### Usage
+```bash
+# Launch the TUI
+aavi_sandbox_tui
+
+# Navigate with:
+# - Arrow keys or vim keys (j/k)
+# - Enter to select
+# - q or Esc to go back/exit
+```
+
+The TUI provides access to all CLI functionality in an easy-to-use interface, perfect for users who prefer interactive management of their sandboxes.
+
 ---
 
 ## 🛠 Installation
@@ -125,7 +152,6 @@ sudo aavi_sandbox --remove my_old_patch
 ## 🧪 Coming Soon
 
 - `--diff` support
-- `--ui` terminal toggler
 - Multi-directory sandbox layers
 - Tagged snapshot indexing
 - `sandbox.yaml` metadata schema

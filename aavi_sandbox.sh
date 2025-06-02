@@ -78,6 +78,7 @@ function validate_snapshot_name() {
     if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
         echo "❌ Error: Invalid snapshot name '$name'"
         echo "   Use only letters, numbers, underscores, and hyphens"
+        cleanup_logging
         exit 1
     fi
 }
@@ -88,6 +89,7 @@ function check_mount_conflicts() {
     # Check if already mounted
     if mount | grep -q "on $mount_point type overlay"; then
         echo "❌ Error: An overlay is already mounted at $mount_point"
+        cleanup_logging
         exit 1
     fi
 
@@ -218,7 +220,24 @@ mkdir -p "$OVERLAY_BASE" "$WORKDIR_BASE" "$LOGDIR"
 function log_session() {
   SNAPSHOT_NAME="$1"
   SESSION_LOG="$LOGDIR/${SNAPSHOT_NAME}-${TIMESTAMP}.log"
-  exec > >(tee -a "$SESSION_LOG") 2>&1
+  
+  # Create log directory if it doesn't exist
+  mkdir -p "$(dirname "$SESSION_LOG")"
+  
+  # Initialize the log file
+  : > "$SESSION_LOG"
+  
+  # Save original file descriptors
+  exec 4>&1
+  exec 5>&2
+  
+  # Set up logging to both terminal and file
+  exec 1> >(tee -a "$SESSION_LOG")
+  exec 2> >(tee -a "$SESSION_LOG" >&2)
+  
+  # Set up debug trace logging to file only
+  exec 3>"$SESSION_LOG"
+  BASH_XTRACEFD=3
   set -x
 }
 
@@ -278,12 +297,23 @@ function list_snapshots() {
   find "$OVERLAY_BASE" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | grep -v '^etc$'
 }
 
+function cleanup_logging() {
+  # Restore original file descriptors
+  [[ -n "$BASH_XTRACEFD" ]] && exec 3>&-
+  [[ -n "$4" ]] && exec 1>&4 4>&-
+  [[ -n "$5" ]] && exec 2>&5 5>&-
+  set +x
+}
+
 # === CLI SWITCHES ===
 case "$1" in
   --play)
     SNAPSHOT_NAME="${2:-default_$TIMESTAMP}"
     validate_snapshot_name "$SNAPSHOT_NAME"
+    
+    # Set up logging first, before any other operations
     log_session "$SNAPSHOT_NAME"
+    
     # Create initial metadata
     create_metadata "$SNAPSHOT_NAME" "${3:-}" "${4:-}"
     mount_overlay
@@ -343,6 +373,7 @@ case "$1" in
     ;;
 
   --exit)
+    cleanup_logging
     unmount_overlay
     ;;
 

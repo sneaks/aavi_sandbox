@@ -1,9 +1,12 @@
 install:
 	sudo cp aavi_sandbox.sh /usr/local/bin/aavi_sandbox
+	sudo cp aavi_tui.sh /usr/local/bin/aavi_sandbox_tui
 	sudo chmod +x /usr/local/bin/aavi_sandbox
+	sudo chmod +x /usr/local/bin/aavi_sandbox_tui
 
 uninstall:
 	sudo rm -f /usr/local/bin/aavi_sandbox
+	sudo rm -f /usr/local/bin/aavi_sandbox_tui
 
 test:
 	./aavi_sandbox.sh --status
@@ -20,3 +23,5 @@ doc:
 	@echo "  --list                              List snapshots"
 	@echo "  --remove SNAPSHOT                   Delete snapshot index"
 	@echo "  --target PATH                       Optional override for mount location"
+
+.PHONY: install uninstall
