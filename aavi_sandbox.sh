@@ -73,13 +73,18 @@ function load_config() {
 }
 
 # === VALIDATION ===
+function error_exit() {
+    local message="$1"
+    set +x  # Disable debug mode immediately
+    echo "❌ Error: $message"
+    cleanup_logging
+    exit 1
+}
+
 function validate_snapshot_name() {
     local name="$1"
     if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        echo "❌ Error: Invalid snapshot name '$name'"
-        echo "   Use only letters, numbers, underscores, and hyphens"
-        cleanup_logging
-        exit 1
+        error_exit "Invalid snapshot name '$name'\n   Use only letters, numbers, underscores, and hyphens"
     fi
 }
 
@@ -88,9 +93,7 @@ function check_mount_conflicts() {
     
     # Check if already mounted
     if mount | grep -q "on $mount_point type overlay"; then
-        echo "❌ Error: An overlay is already mounted at $mount_point"
-        cleanup_logging
-        exit 1
+        error_exit "An overlay is already mounted at $mount_point"
     fi
 
     # Check for nested mounts
@@ -238,6 +241,10 @@ function log_session() {
   # Set up debug trace logging to file only
   exec 3>"$SESSION_LOG"
   BASH_XTRACEFD=3
+  
+  # Set up cleanup trap
+  trap cleanup_logging EXIT
+  
   set -x
 }
 
@@ -298,11 +305,24 @@ function list_snapshots() {
 }
 
 function cleanup_logging() {
-  # Restore original file descriptors
-  [[ -n "$BASH_XTRACEFD" ]] && exec 3>&-
-  [[ -n "$4" ]] && exec 1>&4 4>&-
-  [[ -n "$5" ]] && exec 2>&5 5>&-
-  set +x
+  # Disable debug tracing first
+  set +x 2>/dev/null || true
+  
+  # Close the trace file descriptor
+  if [[ -n "$BASH_XTRACEFD" ]]; then
+    exec 3>&-
+    unset BASH_XTRACEFD
+  fi
+  
+  # Restore original stdout if saved
+  if [[ -n "$4" ]]; then
+    exec 1>&4 4>&-
+  fi
+  
+  # Restore original stderr if saved
+  if [[ -n "$5" ]]; then
+    exec 2>&5 5>&-
+  fi
 }
 
 # === CLI SWITCHES ===
