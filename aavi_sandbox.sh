@@ -294,8 +294,30 @@ function status_report() {
 
   if [ -d "$OVERLAY_BASE/$SNAPSHOT_NAME" ]; then
     echo "📦 Snapshot '$SNAPSHOT_NAME' exists."
+    
+    # Check for changes in the overlay
+    if [[ -n "$(find "$OVERLAY_BASE/$SNAPSHOT_NAME" -mindepth 1 -not -path '*/\.*' 2>/dev/null)" ]]; then
+      echo "💾 Changes are present in the overlay."
+    else
+      echo "📭 No changes staged (empty overlay)."
+    fi
   else
     echo "📭 No changes staged."
+  fi
+
+  # Show metadata if it exists
+  if [[ -n "$SNAPSHOT_NAME" ]]; then
+    echo
+    echo "📋 Snapshot Metadata:"
+    if [[ -f "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json" ]]; then
+      jq -r '. | "Name:        \(.name)\nCreated:     \(.created_at)\nDescription: \(.description)\nLabels:      \(.labels | join(", "))"' \
+        "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json"
+    elif [[ "$SNAPSHOT_NAME" == default_* ]]; then
+      echo "This is a temporary sandbox session."
+      echo "Use --commit with a name to save it permanently."
+    else
+      echo "No metadata found for snapshot '$SNAPSHOT_NAME'"
+    fi
   fi
 }
 
@@ -334,8 +356,13 @@ case "$1" in
     # Set up logging first, before any other operations
     log_session "$SNAPSHOT_NAME"
     
-    # Create initial metadata
-    create_metadata "$SNAPSHOT_NAME" "${3:-}" "${4:-}"
+    # Create initial metadata with description for default snapshots
+    if [[ "$SNAPSHOT_NAME" == default_* ]]; then
+        create_metadata "$SNAPSHOT_NAME" "Temporary sandbox session created at $(date '+%Y-%m-%d %H:%M:%S')" "temporary,default"
+    else
+        create_metadata "$SNAPSHOT_NAME" "${3:-}" "${4:-}"
+    fi
+    
     mount_overlay
     ;;
 
