@@ -13,6 +13,40 @@ if ! command -v gum &> /dev/null; then
     exit 1
 fi
 
+# === CONFIG ===
+LOWERDIR="/opt/aavi_sandbox_test"
+OVERLAY_BASE="/tmp/aavi_overlay"
+WORKDIR_BASE="/tmp/aavi_work"
+MOUNTPOINT="/opt/aavi_sandbox_test"
+SNAPSHOT_NAME=""
+
+function load_config() {
+    # Default config locations
+    local config_files=(
+        "/etc/aavi_sandbox.conf"
+        "$HOME/.aavi_sandbox.conf"
+        "./.aavi_sandbox.conf"
+    )
+
+    # Load configs in order (later files override earlier ones)
+    for config in "${config_files[@]}"; do
+        if [[ -f "$config" ]]; then
+            gum style --foreground 246 "📄 Loading config: $config"
+            # shellcheck source=/dev/null
+            source "$config"
+        fi
+    done
+
+    # Environment variables override config files
+    [[ -n "$AAVI_LOWERDIR" ]] && LOWERDIR="$AAVI_LOWERDIR"
+    [[ -n "$AAVI_OVERLAY_BASE" ]] && OVERLAY_BASE="$AAVI_OVERLAY_BASE"
+    [[ -n "$AAVI_WORKDIR_BASE" ]] && WORKDIR_BASE="$AAVI_WORKDIR_BASE"
+    [[ -n "$AAVI_MOUNTPOINT" ]] && MOUNTPOINT="$AAVI_MOUNTPOINT"
+}
+
+# Load config at startup
+load_config
+
 # === Styling ===
 HEADER_STYLE="--border double --border-foreground 212 --padding '1 2'"
 MENU_STYLE="--height 15"
@@ -200,6 +234,65 @@ This interface provides easy access to aavi_sandbox functionality:
 EOF
 }
 
+function show_status() {
+    local status_output mounted_status changes_status
+    
+    # Get mount status
+    if mount | grep -q "on $MOUNTPOINT type overlay"; then
+        mounted_status=$(gum style --foreground 2 "✅ Mounted")
+    else
+        mounted_status=$(gum style --foreground 1 "❌ Not Mounted")
+    fi
+
+    # Get changes status
+    if [[ -d "$OVERLAY_BASE/$SNAPSHOT_NAME" ]]; then
+        changes_status=$(gum style --foreground 3 "📦 Changes Present")
+    else
+        changes_status=$(gum style --foreground 8 "📭 No Changes")
+    fi
+
+    # Format the status display
+    gum style \
+        --border double \
+        --border-foreground 212 \
+        --padding "1 2" \
+        "🧾 Active Overlay Status" \
+        "$(gum style --foreground 248 '----------------------------------------')" \
+        "Mount Status:  $mounted_status" \
+        "Changes:       $changes_status" \
+        "" \
+        "$(gum style --foreground 246 'Paths')" \
+        "$(gum style --foreground 248 '----------------------------------------')" \
+        "$(gum style --foreground 246 'Base:')        $LOWERDIR" \
+        "$(gum style --foreground 246 'Overlay:')     $OVERLAY_BASE/$SNAPSHOT_NAME" \
+        "$(gum style --foreground 246 'Work Dir:')    $WORKDIR_BASE/$SNAPSHOT_NAME" \
+        "$(gum style --foreground 246 'Mount Point:') $MOUNTPOINT"
+
+    # If mounted, show additional options
+    if mount | grep -q "on $MOUNTPOINT type overlay"; then
+        echo
+        gum style --foreground 212 "Actions available:"
+        if gum choose "Unmount Overlay" "View Changes" "Back"; then
+            case "$REPLY" in
+                "Unmount Overlay")
+                    if gum confirm "Unmount the current overlay?"; then
+                        gum spin --spinner dot --title "Unmounting overlay..." -- aavi_sandbox --exit
+                        gum style --foreground 212 "🚫 Overlay unmounted"
+                        sleep 1
+                    fi
+                    ;;
+                "View Changes")
+                    echo "Changes in overlay (coming soon):"
+                    gum input --placeholder "Press Enter to continue..."
+                    ;;
+            esac
+        fi
+    else
+        echo
+        gum input --placeholder "Press Enter to continue..."
+    fi
+}
+
 # === Main Loop ===
 while true; do
     clear
@@ -208,8 +301,7 @@ while true; do
     choice=$(show_menu)
     case "$choice" in
         "Active Snapshots")
-            gum style --foreground 212 "🔄 Fetching active snapshots..."
-            aavi_sandbox --status | gum pager
+            show_status
             ;;
         "Create New Snapshot")
             create_snapshot
