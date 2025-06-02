@@ -177,8 +177,11 @@ function list_snapshots_with_metadata() {
     
     # Check if overlay directory exists and has snapshots
     if [[ ! -d "$OVERLAY_BASE" ]] || [[ -z "$(find "$OVERLAY_BASE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]]; then
-        echo "📭 No snapshots found."
-        echo "Use --play SNAPSHOT to create a new sandbox session."
+        echo "�� No snapshots found"
+        echo
+        echo "To create a new snapshot:"
+        echo "  aavi_sandbox --play my_snapshot    # Named snapshot"
+        echo "  aavi_sandbox --play                # Temporary snapshot"
         return 0
     fi
     
@@ -280,45 +283,46 @@ function commit_changes() {
 }
 
 function status_report() {
-  echo "🧾 Aavi Sandbox Status"
-  echo "Lowerdir:     $LOWERDIR"
-  echo "Upperdir:     $OVERLAY_BASE/$SNAPSHOT_NAME"
-  echo "Workdir:      $WORKDIR_BASE/$SNAPSHOT_NAME"
-  echo "Mountpoint:   $MOUNTPOINT"
+    echo "🧾 Aavi Sandbox Status"
+    echo "Lowerdir:     $LOWERDIR"
+    echo "Upperdir:     $OVERLAY_BASE/$SNAPSHOT_NAME"
+    echo "Workdir:      $WORKDIR_BASE/$SNAPSHOT_NAME"
+    echo "Mountpoint:   $MOUNTPOINT"
 
-  if mount | grep -q "on $MOUNTPOINT type overlay"; then
-    echo "✅ Overlay is mounted."
-  else
-    echo "❌ Overlay is NOT mounted."
-  fi
-
-  if [ -d "$OVERLAY_BASE/$SNAPSHOT_NAME" ]; then
-    echo "📦 Snapshot '$SNAPSHOT_NAME' exists."
-    
-    # Check for changes in the overlay
-    if [[ -n "$(find "$OVERLAY_BASE/$SNAPSHOT_NAME" -mindepth 1 -not -path '*/\.*' 2>/dev/null)" ]]; then
-      echo "💾 Changes are present in the overlay."
+    if mount | grep -q "on $MOUNTPOINT type overlay"; then
+        echo "✅ Overlay is mounted."
     else
-      echo "📭 No changes staged (empty overlay)."
+        echo "❌ Overlay is NOT mounted."
     fi
-  else
-    echo "📭 No changes staged."
-  fi
 
-  # Show metadata if it exists
-  if [[ -n "$SNAPSHOT_NAME" ]]; then
-    echo
-    echo "📋 Snapshot Metadata:"
-    if [[ -f "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json" ]]; then
-      jq -r '. | "Name:        \(.name)\nCreated:     \(.created_at)\nDescription: \(.description)\nLabels:      \(.labels | join(", "))"' \
-        "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json"
-    elif [[ "$SNAPSHOT_NAME" == default_* ]]; then
-      echo "This is a temporary sandbox session."
-      echo "Use --commit with a name to save it permanently."
+    if [ -d "$OVERLAY_BASE/$SNAPSHOT_NAME" ]; then
+        echo "📦 Snapshot '$SNAPSHOT_NAME' exists."
+        
+        # Check for changes in the overlay
+        if [[ -n "$(find "$OVERLAY_BASE/$SNAPSHOT_NAME" -mindepth 1 -not -path '*/\.*' 2>/dev/null)" ]]; then
+            echo "💾 Changes are present in the overlay."
+        else
+            echo "📭 No changes staged (empty overlay)."
+        fi
+        
+        # Show metadata if it exists
+        echo
+        echo "📋 Snapshot Metadata:"
+        if [[ -f "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json" ]]; then
+            jq -r '. | "Name:        \(.name)\nCreated:     \(.created_at)\nDescription: \(.description)\nLabels:      \(.labels | join(", "))"' \
+                "$OVERLAY_BASE/$SNAPSHOT_NAME/.aavi_metadata.json"
+        elif [[ "$SNAPSHOT_NAME" == default_* ]]; then
+            echo "This is a temporary sandbox session."
+            echo "Use --commit with a name to save it permanently."
+        fi
     else
-      echo "No metadata found for snapshot '$SNAPSHOT_NAME'"
+        echo "📭 No changes staged."
+        if [[ -n "$SNAPSHOT_NAME" ]]; then
+            echo
+            echo "💡 Tip: Create a new snapshot with:"
+            echo "  aavi_sandbox --play $SNAPSHOT_NAME"
+        fi
     fi
-  fi
 }
 
 function list_snapshots() {

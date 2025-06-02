@@ -116,8 +116,20 @@ function manage_snapshots() {
         mapfile -t snapshots < <(aavi_sandbox --list | grep "^📦" | cut -d' ' -f2)
 
         if ((${#snapshots[@]} == 0)); then
-            gum style --foreground 1 "No snapshots found!"
-            gum input --placeholder "Press Enter to continue..."
+            gum style \
+                --border normal \
+                --border-foreground 212 \
+                --padding "1 2" \
+                "📭 No snapshots found" \
+                "" \
+                "$(gum style --foreground 246 'To create a new snapshot:')" \
+                "• Use the 'Create New Snapshot' option in the main menu" \
+                "• Or run: aavi_sandbox --play my_snapshot" \
+                "" \
+                "$(gum style --foreground 246 'For temporary sessions:')" \
+                "• Just use: aavi_sandbox --play"
+            
+            gum input --placeholder "Press Enter to return to main menu..."
             return
         fi
 
@@ -165,17 +177,19 @@ function manage_snapshots() {
                 fi
                 ;;
             "Clear Changes")
-                if gum confirm "Clear all changes in '$snapshot'?" --negative; then
+                if gum confirm "Clear all changes in '$snapshot'?" --affirmative "Yes, Clear" --negative "Cancel"; then
                     gum spin --spinner dot --title "Clearing changes..." -- aavi_sandbox --clear "$snapshot"
                     gum style --foreground 212 "🧹 Changes cleared!"
                     sleep 1
                 fi
                 ;;
             "Remove Snapshot")
-                if gum confirm "⚠️  Permanently remove '$snapshot'?" --negative; then
+                gum style --foreground 1 "⚠️  Warning: This action cannot be undone!"
+                if gum confirm "Really remove snapshot '$snapshot'?" --affirmative "Yes, Remove" --negative "Cancel"; then
                     gum spin --spinner dot --title "Removing snapshot..." -- aavi_sandbox --remove "$snapshot"
                     gum style --foreground 212 "🗑️  Snapshot removed!"
                     sleep 1
+                    break  # Exit the menu after removal
                 fi
                 ;;
             "Back"|"")
