@@ -234,14 +234,26 @@ This interface provides easy access to aavi_sandbox functionality:
 EOF
 }
 
+function get_active_snapshot() {
+    # Try to get the active overlay from mount info
+    local active_overlay
+    active_overlay=$(mount | grep "on $MOUNTPOINT type overlay" | grep -o "upperdir=$OVERLAY_BASE/[^,]*" | cut -d'/' -f4)
+    echo "$active_overlay"
+}
+
 function show_status() {
-    local status_output mounted_status changes_status
+    local status_output mounted_status changes_status active_snapshot
+    
+    # Get the active snapshot name
+    active_snapshot=$(get_active_snapshot)
     
     # Get mount status
     if mount | grep -q "on $MOUNTPOINT type overlay"; then
         mounted_status=$(gum style --foreground 2 "✅ Mounted")
+        SNAPSHOT_NAME="$active_snapshot"
     else
         mounted_status=$(gum style --foreground 1 "❌ Not Mounted")
+        SNAPSHOT_NAME=""
     fi
 
     # Get changes status
@@ -258,35 +270,35 @@ function show_status() {
         --padding "1 2" \
         "🧾 Active Overlay Status" \
         "$(gum style --foreground 248 '----------------------------------------')" \
-        "Mount Status:  $mounted_status" \
-        "Changes:       $changes_status" \
+        "Active Snapshot: $(gum style --foreground 212 "${SNAPSHOT_NAME:-None}")" \
+        "Mount Status:    $mounted_status" \
+        "Changes:         $changes_status" \
         "" \
         "$(gum style --foreground 246 'Paths')" \
         "$(gum style --foreground 248 '----------------------------------------')" \
         "$(gum style --foreground 246 'Base:')        $LOWERDIR" \
-        "$(gum style --foreground 246 'Overlay:')     $OVERLAY_BASE/$SNAPSHOT_NAME" \
-        "$(gum style --foreground 246 'Work Dir:')    $WORKDIR_BASE/$SNAPSHOT_NAME" \
+        "$(gum style --foreground 246 'Overlay:')     $OVERLAY_BASE/${SNAPSHOT_NAME:-<none>}" \
+        "$(gum style --foreground 246 'Work Dir:')    $WORKDIR_BASE/${SNAPSHOT_NAME:-<none>}" \
         "$(gum style --foreground 246 'Mount Point:') $MOUNTPOINT"
 
     # If mounted, show additional options
-    if mount | grep -q "on $MOUNTPOINT type overlay"; then
+    if [[ -n "$active_snapshot" ]]; then
         echo
         gum style --foreground 212 "Actions available:"
-        if gum choose "Unmount Overlay" "View Changes" "Back"; then
-            case "$REPLY" in
-                "Unmount Overlay")
-                    if gum confirm "Unmount the current overlay?"; then
-                        gum spin --spinner dot --title "Unmounting overlay..." -- aavi_sandbox --exit
-                        gum style --foreground 212 "🚫 Overlay unmounted"
-                        sleep 1
-                    fi
-                    ;;
-                "View Changes")
-                    echo "Changes in overlay (coming soon):"
-                    gum input --placeholder "Press Enter to continue..."
-                    ;;
-            esac
-        fi
+        action=$(gum choose "Unmount Overlay" "View Changes" "Back")
+        case "$action" in
+            "Unmount Overlay")
+                if gum confirm "Unmount the current overlay?"; then
+                    gum spin --spinner dot --title "Unmounting overlay..." -- aavi_sandbox --exit
+                    gum style --foreground 212 "🚫 Overlay unmounted"
+                    sleep 1
+                fi
+                ;;
+            "View Changes")
+                echo "Changes in overlay (coming soon):"
+                gum input --placeholder "Press Enter to continue..."
+                ;;
+        esac
     else
         echo
         gum input --placeholder "Press Enter to continue..."
