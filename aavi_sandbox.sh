@@ -16,7 +16,7 @@ function check_system_requirements() {
     if ! grep -q overlay /proc/filesystems; then
         echo "❌ Error: Overlay filesystem not supported by this kernel"
         exit 1
-    }
+    fi
 
     # Check if running with necessary privileges
     if [[ $EUID -ne 0 ]]; then
