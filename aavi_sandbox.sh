@@ -113,6 +113,7 @@ function create_metadata() {
     local description="${2:-}"
     local labels="${3:-}"
     local metadata_path
+    mkdir -p "$(dirname "$(get_metadata_path "$snapshot_name")")"
     metadata_path=$(get_metadata_path "$snapshot_name")
     
     # Create metadata JSON
@@ -218,6 +219,7 @@ function mount_overlay() {
   WORKDIR="$WORKDIR_BASE/$SNAPSHOT_NAME"
   mkdir -p "$UPPERDIR" "$WORKDIR"
 
+  mkdir -p "$MOUNTPOINT"
   mount -t overlay overlay \
     -o lowerdir=$LOWERDIR,upperdir=$UPPERDIR,workdir=$WORKDIR \
     $MOUNTPOINT
